@@ -139,10 +139,7 @@ python train/train_single_read_rna004.py \
 - `--neg-frac` uses this fraction of the IVT reads of each motif (sampled by read).
 - `--neg-max-reads` caps the number of IVT reads per motif.
 
-IVT reads take part in the 80/20 split like GTR reads, so the held-out part gives the
-false-positive rate on unmodified mRNA. With IVT reads the metrics additionally report this
-rate (`ivt_test_fp`), the AUC on the GTR reads alone (`gtr_test_auc`) and the probability
-cutoff at which 1% of the held-out IVT reads are called modified (`suggested_threshold`).
+IVT reads take part in the 80/20 split like GTR reads.
 
 The two released configurations are:
 

@@ -19,7 +19,6 @@ from nanogtr.features import FEATURES, build_table
 from nanogtr.motifs import parse_motifs
 
 SEED = 42
-IVT_FP_TARGET = 0.01
 
 PARAM_GRID = {
     'n_estimators': [200, 300, 400, 600],
@@ -48,7 +47,6 @@ def load_gtr(motif, args):
     prefix = df['chr_2'].str.replace(r'_[FR]$', '', regex=True).str.split('_').str[0]
     df = df[prefix.isin(['m6A', 'A'])].copy()
     df['m6A'] = (prefix[df.index] == 'm6A').astype(int)
-    df['is_ivt'] = 0
     return df
 
 
@@ -57,7 +55,6 @@ def load_ivt(motif, args):
                      os.path.join(args.neg_event_folder, f'eventalign_with_{motif}.txt'),
                      longest=True)
     df['m6A'] = 0
-    df['is_ivt'] = 1
     df['read_name'] = 'IVT:' + df['read_name']
     reads = df['read_name'].unique()
     if not len(reads):
@@ -72,7 +69,6 @@ def load_ivt(motif, args):
 
 def fit(df, motif, args, threads):
     X, y, reads = df[FEATURES].astype(float), df['m6A'], df['read_name']
-    ivt = df['is_ivt'].to_numpy(bool)
 
     # hold out 20% of the reads; a read never contributes to both sides
     split = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=SEED)
@@ -81,7 +77,7 @@ def fit(df, motif, args, threads):
     X_test, y_test = X.iloc[test], y.iloc[test]
 
     n_pos, n_neg = int((y_train == 1).sum()), int((y_train == 0).sum())
-    if args.scale_pos_weight == 'balanced' or (args.scale_pos_weight is None and not ivt.any()):
+    if args.scale_pos_weight == 'balanced' or (args.scale_pos_weight is None and not args.neg_feature_folder):
         weight = n_neg / n_pos if n_pos else 1.0
     else:
         weight = float(args.scale_pos_weight or 1.0)
@@ -113,23 +109,6 @@ def fit(df, motif, args, threads):
         'best_params': params,
     }
 
-    if ivt.any():
-        ivt_test = ivt[test]
-        gtr_y = y_test.to_numpy()[~ivt_test]
-        stats['ivt_neg_train'] = int(ivt[train].sum())
-        if len(np.unique(gtr_y)) > 1:
-            stats['gtr_test_auc'] = round(float(roc_auc_score(gtr_y, prob[~ivt_test])), 4)
-        if ivt_test.any():
-            # cutoff that leaves IVT_FP_TARGET of the held-out IVT reads called modified
-            cutoff = float(np.quantile(prob[ivt_test], 1 - IVT_FP_TARGET))
-            positives = prob[~ivt_test & (y_test.to_numpy() == 1)]
-            stats['ivt_test_n'] = int(ivt_test.sum())
-            stats['ivt_test_fp'] = round(float((prob[ivt_test] >= 0.5).mean()), 4)
-            stats['ivt_fp_target'] = IVT_FP_TARGET
-            stats['suggested_threshold'] = round(cutoff, 4)
-            if len(positives):
-                stats['gtr_recall_at_0.5'] = round(float((positives >= 0.5).mean()), 4)
-                stats['gtr_recall_at_thr'] = round(float((positives >= cutoff).mean()), 4)
     return model, stats
 
 
@@ -150,7 +129,7 @@ def train_motif(motif, args, threads):
     with open(os.path.join(args.model_dir, f'{motif}_single_read.meta.json'), 'w') as out:
         json.dump({'feature_columns': FEATURES, **stats}, out, indent=2)
     print(f"{motif}: rows={stats['n_train']} cv_auc={stats['cv_best_auc']} "
-          f"test_auc={stats['test_auc']} ivt_fp={stats.get('ivt_test_fp')}", flush=True)
+          f"test_auc={stats['test_auc']}", flush=True)
     return stats
 
 
