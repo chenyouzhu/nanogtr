@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nanogtr"
+version = "1.1.0"
+description = "m6A prediction for nanopore direct RNA sequencing with models trained on ground-truth RNAs"
+requires-python = ">=3.9"
+dependencies = ["numpy", "pandas", "scikit-learn", "xgboost"]
+
+[tool.setuptools]
+packages = ["nanogtr"]
